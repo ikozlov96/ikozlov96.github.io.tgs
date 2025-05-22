@@ -29,7 +29,9 @@
             border: none;
             border-radius: 5px;
             width: 100%;
-            max-width: 300px;
+            max
+
+            -width: 300px;
         }
         button:disabled {
             background-color: #cccccc;
@@ -38,13 +40,27 @@
         button:hover:not(:disabled) {
             background-color: #006699;
         }
+        #debug-log {
+            width: 100%;
+            max-width: 300px;
+            height: 200px;
+            overflow-y: auto;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
 <h1>Sticker Store Test</h1>
 <button id="stars-btn">Test Telegram Stars (100 Stars)</button>
-<button id="payments-btn">Test Payments API ($1.00)</button>
 <button id="ton-btn">Test TON Payments (0.1 TON)</button>
+<div id="debug-log">Debug Log:
+</div>
 <script src="src/app.js"></script>
 </body>
 </html>
