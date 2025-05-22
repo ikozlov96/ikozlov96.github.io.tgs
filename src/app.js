@@ -158,7 +158,10 @@ document.getElementById('stars-btn')?.addEventListener('click', async () => {
         if (tgWebApp && typeof tgWebApp.openInvoice === 'function') {
             logToUI('🚀 Открытие инвойса через Telegram...');
 
-            tgWebApp.openInvoice(response.invoice.url, (status) => {
+            // Для Stars используем правильный формат URL
+            const invoiceUrl = response.invoice.url || `https://t.me/invoice/${response.payload}`;
+
+            tgWebApp.openInvoice(invoiceUrl, (status) => {
                 logToUI(`💳 Статус платежа: ${status}`);
 
                 const messages = {
@@ -181,16 +184,17 @@ document.getElementById('stars-btn')?.addEventListener('click', async () => {
         } else {
             // Fallback для тестирования в браузере
             logToUI('⚠️  openInvoice API недоступно - показываю ссылку');
+            const invoiceUrl = response.invoice.url || `https://t.me/invoice/${response.payload}`;
             const link = document.createElement('a');
-            link.href = response.invoice.url;
-            link.textContent = 'Открыть инвойс';
+            link.href = invoiceUrl;
+            link.textContent = 'Открыть Stars инвойс';
             link.target = '_blank';
             link.style.display = 'block';
             link.style.margin = '10px 0';
             link.style.color = '#0088cc';
             document.body.appendChild(link);
 
-            setButtonState('stars-btn', `⭐ Telegram Stars (${CONFIG.starsAmount} звезд)`, false);
+            setButtonState('stars-btn', `⭐ Telegram Stars (${CONFIG.starsAmount} звezd)`, false);
         }
 
     } catch (error) {
