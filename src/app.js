@@ -16,6 +16,7 @@ async function makeRequest(endpoint, data) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
+            mode: 'cors',
         });
         const responseText = await response.text();
         logToUI(`Response from ${endpoint} (status ${response.status}): ${responseText}`);
@@ -25,7 +26,10 @@ async function makeRequest(endpoint, data) {
         const result = JSON.parse(responseText);
         return result;
     } catch (error) {
-        logToUI(`Error in ${endpoint}: ${error.message}`);
+        logToUI(`Error in ${endpoint}: ${error.name}: ${error.message}`);
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            logToUI('Possible issues: Network error, CORS, or server unreachable');
+        }
         Telegram.WebApp.showAlert(`Request failed: ${error.message}`);
         throw error;
     }
@@ -81,8 +85,24 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
             throw new Error('Invalid TON payment link');
         }
         logToUI(`Opening TON payment link: ${paymentLink}`);
-        Telegram.WebApp.openLink(paymentLink);
-        Telegram.WebApp.showAlert('Please complete the payment in your TON Wallet.');
+        try {
+            Telegram.WebApp.openLink(paymentLink);
+            logToUI('openLink called successfully');
+            Telegram.WebApp.showAlert('Please complete the payment in your TON Wallet.');
+        } catch (error) {
+            logToUI(`Error opening TON link: ${error.name}: ${error.message}`);
+            Telegram.WebApp.showAlert('Failed to open TON Wallet. Please ensure a TON Wallet (e.g., @Wallet) is installed and in testnet mode.');
+        }
+
+        // Fallback: Retry opening link after a delay
+        setTimeout(() => {
+            try {
+                Telegram.WebApp.openLink(paymentLink);
+                logToUI('Retried opening TON payment link');
+            } catch (error) {
+                logToUI(`Retry error: ${error.name}: ${error.message}`);
+            }
+        }, 1000);
 
         // Poll for payment confirmation
         const checkPayment = setInterval(async () => {
@@ -104,7 +124,7 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
                     button.textContent = 'Test TON Payments (0.1 TON)';
                 }
             } catch (error) {
-                logToUI(`Check TON payment error: ${error.message}`);
+                logToUI(`Check TON payment error: ${error.name}: ${error.message}`);
                 clearInterval(checkPayment);
                 Telegram.WebApp.showAlert(`Check payment failed: ${error.message}`);
                 button.disabled = false;
