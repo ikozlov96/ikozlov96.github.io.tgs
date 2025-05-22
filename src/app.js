@@ -1,23 +1,31 @@
 const backendUrl = 'https://4d44-77-105-28-218.ngrok-free.app'; // Your ngrok URL
 
+// Helper function to log to UI
+function logToUI(message) {
+    const debugLog = document.getElementById('debug-log');
+    const timestamp = new Date().toLocaleTimeString();
+    debugLog.textContent += `\n[${timestamp}] ${message}`;
+    debugLog.scrollTop = debugLog.scrollHeight;
+}
+
 // Helper function to make API requests
 async function makeRequest(endpoint, data) {
     try {
-        console.log(`Sending request to ${endpoint}:`, JSON.stringify(data));
+        logToUI(`Sending request to ${endpoint}: ${JSON.stringify(data)}`);
         const response = await fetch(`${backendUrl}${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         });
+        const responseText = await response.text();
+        logToUI(`Response from ${endpoint} (status ${response.status}): ${responseText}`);
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP error ${response.status}: ${errorText}`);
+            throw new Error(`HTTP error ${response.status}: ${responseText}`);
         }
-        const result = await response.json();
-        console.log(`Response from ${endpoint}:`, JSON.stringify(result));
+        const result = JSON.parse(responseText);
         return result;
     } catch (error) {
-        console.error(`Error in ${endpoint}:`, error.message);
+        logToUI(`Error in ${endpoint}: ${error.message}`);
         Telegram.WebApp.showAlert(`Request failed: ${error.message}`);
         throw error;
     }
@@ -38,9 +46,9 @@ document.getElementById('stars-btn').addEventListener('click', async () => {
         };
         const { invoice } = await makeRequest('/api/create-stars-invoice', data);
         if (!invoice?.url) throw new Error('Invalid invoice URL');
-        console.log('Opening invoice:', invoice.url);
+        logToUI(`Opening invoice: ${invoice.url}`);
         Telegram.WebApp.openInvoice(invoice.url, (status) => {
-            console.log('Invoice status:', status);
+            logToUI(`Invoice status: ${status}`);
             if (status === 'paid') {
                 Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
             } else if (status === 'cancelled') {
@@ -72,7 +80,7 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
         if (!paymentLink || !paymentLink.startsWith('ton://')) {
             throw new Error('Invalid TON payment link');
         }
-        console.log('Opening TON payment link:', paymentLink);
+        logToUI(`Opening TON payment link: ${paymentLink}`);
         Telegram.WebApp.openLink(paymentLink);
         Telegram.WebApp.showAlert('Please complete the payment in your TON Wallet.');
 
@@ -83,7 +91,7 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
                     chatId: data.chatId,
                     packId: data.packId,
                 });
-                console.log('Check TON payment status:', statusRes);
+                logToUI(`Check TON payment status: ${JSON.stringify(statusRes)}`);
                 if (statusRes.status === 'completed') {
                     clearInterval(checkPayment);
                     Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
@@ -96,7 +104,7 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
                     button.textContent = 'Test TON Payments (0.1 TON)';
                 }
             } catch (error) {
-                console.error('Check TON payment error:', error);
+                logToUI(`Check TON payment error: ${error.message}`);
                 clearInterval(checkPayment);
                 Telegram.WebApp.showAlert(`Check payment failed: ${error.message}`);
                 button.disabled = false;
