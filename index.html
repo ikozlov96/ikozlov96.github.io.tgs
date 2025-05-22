@@ -1,64 +1,317 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sticker Store Mini App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Тестирование Telegram Платежей</title>
+
+    <!-- Telegram WebApp Script -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        * {
+            box-sizing: border-box;
             margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-color: #f0f0f0;
-        }
-        h1 {
-            text-align: center;
             color: #333;
         }
-        button {
-            padding: 12px 24px;
-            margin: 10px;
+
+        .container {
+            max-width: 400px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .payment-section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
             font-size: 16px;
-            cursor: pointer;
-            background-color: #0088cc;
-            color: white;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .payment-button {
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 500;
             border: none;
-            border-radius: 5px;
-            width: 100%;
-            max-width: 300px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            position: relative;
+            overflow: hidden;
         }
-        button:disabled {
-            background-color: #cccccc;
+
+        .stars-button {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #333;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+        }
+
+        .stars-button:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ffed4e, #ffd700);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
+        }
+
+        .ton-button {
+            background: linear-gradient(135deg, #0088cc, #0066ff);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 136, 204, 0.3);
+        }
+
+        .ton-button:hover:not(:disabled) {
+            background: linear-gradient(135deg, #0066ff, #0088cc);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 136, 204, 0.4);
+        }
+
+        .payment-button:disabled {
+            background: #bdc3c7 !important;
+            color: #7f8c8d !important;
             cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
         }
-        button:hover:not(:disabled) {
-            background-color: #006699;
+
+        .payment-button:active:not(:disabled) {
+            transform: translateY(0);
         }
-        #debug-log {
+
+        .status-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #27ae60;
+        }
+
+        .status-indicator.offline {
+            background: #e74c3c;
+        }
+
+        .debug-section {
+            margin-top: 24px;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 16px;
+        }
+
+        .debug-log {
             width: 100%;
-            max-width: 300px;
             height: 200px;
             overflow-y: auto;
-            background-color: #fff;
-            border: 1px solid #ccc;
-            padding: 10px;
-            font-family: monospace;
-            font-size: 12px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.4;
             white-space: pre-wrap;
-            margin-top: 20px;
+            margin-top: 8px;
+            resize: vertical;
+        }
+
+        .debug-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .debug-log::-webkit-scrollbar-track {
+            background: #34495e;
+            border-radius: 3px;
+        }
+
+        .debug-log::-webkit-scrollbar-thumb {
+            background: #7f8c8d;
+            border-radius: 3px;
+        }
+
+        .info-card {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #2980b9;
+        }
+
+        .warning-card {
+            background: rgba(243, 156, 18, 0.1);
+            border: 1px solid rgba(243, 156, 18, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #f39c12;
+        }
+
+        .clear-log-btn {
+            background: #34495e;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .clear-log-btn:hover {
+            background: #2c3e50;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 16px;
+                margin: 10px;
+            }
+
+            .payment-button {
+                padding: 14px;
+                font-size: 14px;
+            }
+
+            .debug-log {
+                height: 150px;
+                font-size: 10px;
+            }
+        }
+
+        /* Анимация загрузки */
+        .loading {
+            position: relative;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 16px;
+            width: 16px;
+            height: 16px;
+            margin-top: -8px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-<h1>Sticker Store Test</h1>
-<button id="stars-btn">Test Telegram Stars (100 Stars)</button>
-<button id="ton-btn">Test TON Payments (0.1 TON)</button>
-<div id="debug-log">Debug Log:
+<div class="container">
+    <div class="header">
+        <h1>🚀 Telegram Payments Test</h1>
+        <p>Тестирование платежных методов в Mini App</p>
+    </div>
+
+    <div class="info-card">
+        <strong>ℹ️ Информация:</strong><br>
+        Это приложение для тестирования платежей через Telegram Stars и TON в Mini App.
+        Убедитесь, что сервер запущен и настроен.
+    </div>
+
+    <div class="payment-section">
+        <div class="section-title">
+            ⭐ Telegram Stars
+            <div class="status-indicator" id="stars-status"></div>
+        </div>
+        <button id="stars-btn" class="payment-button stars-button">
+            ⭐ Тест Telegram Stars (100 звезд)
+        </button>
+    </div>
+
+    <div class="payment-section">
+        <div class="section-title">
+            💎 TON Blockchain
+            <div class="status-indicator" id="ton-status"></div>
+        </div>
+        <button id="ton-btn" class="payment-button ton-button">
+            💎 Тест TON Платежи (0.1 TON)
+        </button>
+    </div>
+
+    <div class="debug-section">
+        <div class="section-title">
+            🔧 Журнал отладки
+            <button class="clear-log-btn" onclick="clearDebugLog()">Очистить</button>
+        </div>
+        <textarea id="debug-log" class="debug-log" readonly>🚀 Инициализация приложения...</textarea>
+    </div>
 </div>
-<script src="src/app.js"></script>
+
+<script>
+    // Функция очистки лога
+    function clearDebugLog() {
+        const debugLog = document.getElementById('debug-log');
+        debugLog.textContent = '🧹 Лог очищен...\n';
+    }
+
+    // Индикаторы статуса
+    function updateStatusIndicator(elementId, isOnline) {
+        const indicator = document.getElementById(elementId);
+        if (indicator) {
+            indicator.classList.toggle('offline', !isOnline);
+        }
+    }
+
+    // Первоначальная настройка индикаторов
+    updateStatusIndicator('stars-status', false);
+    updateStatusIndicator('ton-status', false);
+</script>
+
+<!-- Основной скрипт приложения -->
+<script src="app.js"></script>
 </body>
 </html>

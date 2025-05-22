@@ -1,175 +1,386 @@
-const backendUrl = 'https://4d44-77-105-28-218.ngrok-free.app'; // Your ngrok URL
+// Конфигурация - измените на ваш ngrok URL или домен
+const CONFIG = {
+    // Для локальной разработки через ngrok
+    backendUrl: window.location.origin, // Автоматически использует текущий домен
+    // Или укажите напрямую: 'https://your-ngrok-url.ngrok-free.app'
 
-// Helper function to log to UI
+    // Настройки для тестирования
+    testChatId: 123456, // Будет заменен на реальный ID пользователя
+    testPackId: 'sticker-pack-1',
+
+    // Суммы для тестирования
+    starsAmount: 100,    // 100 Telegram Stars
+    tonAmount: 0.1       // 0.1 TON
+};
+
+// Инициализация Telegram WebApp
+let tgWebApp = null;
+let currentUser = null;
+
+if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
+    tgWebApp = Telegram.WebApp;
+    tgWebApp.ready();
+    tgWebApp.expand();
+
+    // Получение данных пользователя
+    currentUser = tgWebApp.initDataUnsafe?.user;
+
+    if (currentUser) {
+        logToUI(`👤 Пользователь: ${currentUser.first_name} (ID: ${currentUser.id})`);
+        CONFIG.testChatId = currentUser.id;
+    } else {
+        logToUI('⚠️  Данные пользователя недоступны - используется тестовый ID');
+    }
+
+    // Настройка темы
+    document.body.style.backgroundColor = tgWebApp.backgroundColor || '#f0f0f0';
+    document.body.style.color = tgWebApp.textColor || '#000000';
+
+    logToUI(`📱 WebApp версия: ${tgWebApp.version}, платформа: ${tgWebApp.platform}`);
+} else {
+    logToUI('⚠️  Telegram WebApp API недоступно - тестирование в браузере');
+}
+
+// Функция логирования в UI
 function logToUI(message) {
     const debugLog = document.getElementById('debug-log');
     const timestamp = new Date().toLocaleTimeString();
-    debugLog.textContent += `\n[${timestamp}] ${message}`;
+    const logMessage = `[${timestamp}] ${message}`;
+
+    console.log(logMessage);
+    debugLog.textContent += `\n${logMessage}`;
     debugLog.scrollTop = debugLog.scrollHeight;
 }
 
-// Helper function to make API requests
-async function makeRequest(endpoint, data) {
+// Функция для отображения статуса кнопки
+function setButtonState(buttonId, text, disabled = false) {
+    const button = document.getElementById(buttonId);
+    button.textContent = text;
+    button.disabled = disabled;
+}
+
+// Универсальная функция для API запросов
+async function makeRequest(endpoint, data = null, method = 'POST') {
+    const url = `${CONFIG.backendUrl}${endpoint}`;
+
     try {
-        logToUI(`Sending request to ${endpoint}: ${JSON.stringify(data)}`);
-        const response = await fetch(`${backendUrl}${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-            mode: 'cors',
-        });
+        logToUI(`📤 Запрос: ${method} ${endpoint}`);
+        if (data) logToUI(`📝 Данные: ${JSON.stringify(data, null, 2)}`);
+
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true' // Для ngrok
+            },
+            mode: 'cors'
+        };
+
+        if (data && method !== 'GET') {
+            options.body = JSON.stringify(data);
+        }
+
+        const response = await fetch(url, options);
         const responseText = await response.text();
-        logToUI(`Response from ${endpoint} (status ${response.status}): ${responseText}`);
+
+        logToUI(`📥 Ответ (${response.status}): ${responseText.substring(0, 200)}${responseText.length > 200 ? '...' : ''}`);
+
         if (!response.ok) {
-            throw new Error(`HTTP error ${response.status}: ${responseText}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}\n${responseText}`);
         }
-        return JSON.parse(responseText);
+
+        return responseText ? JSON.parse(responseText) : {};
+
     } catch (error) {
-        logToUI(`Error in ${endpoint}: ${error.name}: ${error.message}`);
+        logToUI(`❌ Ошибка запроса: ${error.message}`);
+
+        // Детальная диагностика ошибок
         if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-            logToUI('Possible issues: Network error, CORS, or server unreachable');
+            logToUI('💡 Возможные причины: CORS, сеть недоступна, неверный URL сервера');
+        } else if (error.message.includes('ERR_NETWORK')) {
+            logToUI('💡 Сетевая ошибка - проверьте подключение и URL сервера');
         }
-        Telegram.WebApp.showAlert(`Request failed: ${error.message}`);
+
+        // Показать пользователю
+        if (tgWebApp) {
+            tgWebApp.showAlert(`Ошибка: ${error.message}`);
+        } else {
+            alert(`Ошибка: ${error.message}`);
+        }
+
         throw error;
     }
 }
 
-// Telegram Stars Payment
-document.getElementById('stars-btn').addEventListener('click', async () => {
-    const button = document.getElementById('stars-btn');
-    button.disabled = true;
-    button.textContent = 'Processing...';
+// Проверка статуса сервера при загрузке
+async function checkServerStatus() {
     try {
-        const data = {
-            chatId: Telegram.WebApp.initDataUnsafe.user?.id || 123456,
-            packId: 'sticker-pack-1',
-            title: 'Premium Sticker Pack',
-            description: 'A set of 10 premium stickers',
-            amount: 100,
-        };
-        const { invoice } = await makeRequest('/api/create-stars-invoice', data);
-        if (!invoice?.url) throw new Error('Invalid invoice URL');
-        logToUI(`Opening invoice: ${invoice.url}`);
-        try {
-            Telegram.WebApp.openInvoice(invoice.url, (status) => {
-                logToUI(`Invoice status: ${status}`);
-                if (status === 'paid') {
-                    Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
-                } else if (status === 'cancelled') {
-                    Telegram.WebApp.showAlert('Payment cancelled.');
-                } else {
-                    Telegram.WebApp.showAlert('Payment failed. Please try again.');
-                }
-                button.disabled = false;
-                button.textContent = 'Test Telegram Stars (100 Stars)';
-            });
-            logToUI('openInvoice called successfully');
-        } catch (error) {
-            logToUI(`Error opening invoice: ${error.name}: ${error.message}`);
-            Telegram.WebApp.showAlert('Failed to open invoice. Please try again.');
+        const status = await makeRequest('/api/status', null, 'GET');
+        logToUI(`✅ Сервер активен: ${status.timestamp}`);
+        logToUI(`🔧 Доступные функции: Stars=${status.features.telegram_stars}, TON=${status.features.ton_payments}`);
+
+        // Обновление кнопок в зависимости от доступных функций
+        if (!status.features.telegram_stars) {
+            setButtonState('stars-btn', 'Telegram Stars недоступно', true);
         }
+        if (!status.features.ton_payments) {
+            setButtonState('ton-btn', 'TON платежи недоступны', true);
+        }
+
     } catch (error) {
-        button.disabled = false;
-        button.textContent = 'Test Telegram Stars (100 Stars)';
+        logToUI('❌ Сервер недоступен');
+    }
+}
+
+// Обработчик Telegram Stars платежей
+document.getElementById('stars-btn')?.addEventListener('click', async () => {
+    const button = document.getElementById('stars-btn');
+    setButtonState('stars-btn', 'Создание инвойса...', true);
+
+    try {
+        const invoiceData = {
+            chatId: CONFIG.testChatId,
+            packId: CONFIG.testPackId,
+            title: '⭐ Премиум стикер-пак',
+            description: 'Набор из 10 эксклюзивных стикеров',
+            amount: CONFIG.starsAmount
+        };
+
+        const response = await makeRequest('/api/create-stars-invoice', invoiceData);
+
+        if (!response.success || !response.invoice?.url) {
+            throw new Error('Получен некорректный ответ от сервера');
+        }
+
+        logToUI(`💫 Инвойс создан: ${response.payload}`);
+
+        // Открытие инвойса через Telegram WebApp API
+        if (tgWebApp && typeof tgWebApp.openInvoice === 'function') {
+            logToUI('🚀 Открытие инвойса через Telegram...');
+
+            tgWebApp.openInvoice(response.invoice.url, (status) => {
+                logToUI(`💳 Статус платежа: ${status}`);
+
+                const messages = {
+                    'paid': '🎉 Платеж успешен! Стикеры разблокированы.',
+                    'cancelled': '❌ Платеж отменен.',
+                    'failed': '💔 Платеж не удался. Попробуйте еще раз.',
+                    'pending': '⏳ Платеж в обработке...'
+                };
+
+                const message = messages[status] || `❓ Неизвестный статус: ${status}`;
+
+                if (tgWebApp) {
+                    tgWebApp.showAlert(message);
+                } else {
+                    alert(message);
+                }
+
+                setButtonState('stars-btn', `⭐ Telegram Stars (${CONFIG.starsAmount} звезд)`, false);
+            });
+        } else {
+            // Fallback для тестирования в браузере
+            logToUI('⚠️  openInvoice API недоступно - показываю ссылку');
+            const link = document.createElement('a');
+            link.href = response.invoice.url;
+            link.textContent = 'Открыть инвойс';
+            link.target = '_blank';
+            link.style.display = 'block';
+            link.style.margin = '10px 0';
+            link.style.color = '#0088cc';
+            document.body.appendChild(link);
+
+            setButtonState('stars-btn', `⭐ Telegram Stars (${CONFIG.starsAmount} звезд)`, false);
+        }
+
+    } catch (error) {
+        setButtonState('stars-btn', `⭐ Telegram Stars (${CONFIG.starsAmount} звезд)`, false);
+        logToUI(`❌ Ошибка создания Stars инвойса: ${error.message}`);
     }
 });
 
-// TON Payments
-document.getElementById('ton-btn').addEventListener('click', async () => {
+// Обработчик TON платежей
+document.getElementById('ton-btn')?.addEventListener('click', async () => {
     const button = document.getElementById('ton-btn');
-    button.disabled = true;
-    button.textContent = 'Processing...';
+    setButtonState('ton-btn', 'Создание TON платежа...', true);
+
     try {
-        const data = {
-            chatId: Telegram.WebApp.initDataUnsafe.user?.id || 123456,
-            packId: 'sticker-pack-1',
-            amount: 0.1,
+        const paymentData = {
+            chatId: CONFIG.testChatId,
+            packId: CONFIG.testPackId,
+            amount: CONFIG.tonAmount
         };
-        const { paymentLink } = await makeRequest('/api/create-ton-invoice', data);
-        if (!paymentLink || !paymentLink.startsWith('ton://')) {
-            throw new Error('Invalid TON payment link');
-        }
-        logToUI(`Opening TON payment link: ${paymentLink}`);
-        logToUI(`WebView platform: ${Telegram.WebApp.platform}, version: ${Telegram.WebApp.version}`);
 
-        // Try openLink
+        const response = await makeRequest('/api/create-ton-invoice', paymentData);
+
+        if (!response.success || !response.paymentLink) {
+            throw new Error('Получен некорректный ответ от сервера');
+        }
+
+        logToUI(`💎 TON платеж создан: ${response.payload}`);
+        logToUI(`🔗 Ссылка: ${response.paymentLink}`);
+
+        // Попытка открыть TON кошелек
         let linkOpened = false;
-        try {
-            Telegram.WebApp.openLink(paymentLink);
-            logToUI('openLink called successfully');
-            linkOpened = true;
-        } catch (error) {
-            logToUI(`Error opening TON link: ${error.name}: ${error.message}`);
-        }
 
-        // Fallback: window.open
-        if (!linkOpened) {
+        // Способ 1: Telegram WebApp openLink
+        if (tgWebApp && typeof tgWebApp.openLink === 'function') {
             try {
-                window.open(paymentLink, '_blank');
-                logToUI('window.open called as fallback');
+                tgWebApp.openLink(response.paymentLink);
+                logToUI('✅ Ссылка открыта через Telegram WebApp');
                 linkOpened = true;
             } catch (error) {
-                logToUI(`window.open error: ${error.name}: ${error.message}`);
+                logToUI(`❌ Ошибка openLink: ${error.message}`);
             }
         }
 
-        // Show clickable link or copy button
-        const linkContainer = document.getElementById('link-container') || document.createElement('div');
-        linkContainer.id = 'link-container';
-        linkContainer.style.margin = '10px';
-        linkContainer.innerHTML = `
-      <p>${linkOpened ? 'Complete payment in your TON Wallet.' : 'Open or copy this link to pay:'}</p>
-      <a href="${paymentLink}" style="color: #007bff">${paymentLink}</a>
-      <button id="copy-link-btn" style="margin-left: 10px;">Copy Link</button>
-    `;
-        document.body.appendChild(linkContainer);
-
-        document.getElementById('copy-link-btn').addEventListener('click', () => {
-            navigator.clipboard.writeText(paymentLink).then(() => {
-                logToUI('Payment link copied to clipboard');
-                Telegram.WebApp.showAlert('Link copied! Paste it in Telegram to pay.');
-            }).catch((err) => {
-                logToUI(`Clipboard error: ${err}`);
-            });
-        });
-
+        // Способ 2: window.open как fallback
         if (!linkOpened) {
-            Telegram.WebApp.showAlert('Failed to open TON Wallet. Use the link below or copy it to Telegram.');
-        } else {
-            Telegram.WebApp.showAlert('Please complete the payment in your TON Wallet.');
-        }
-
-        // Poll for payment confirmation
-        const checkPayment = setInterval(async () => {
             try {
-                const statusRes = await makeRequest('/api/check-ton-payment', {
-                    chatId: data.chatId,
-                    packId: data.packId,
-                });
-                logToUI(`Check TON payment status: ${JSON.stringify(statusRes)}`);
-                if (statusRes.status === 'completed') {
-                    clearInterval(checkPayment);
-                    Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
-                    linkContainer.remove();
-                    button.disabled = false;
-                    button.textContent = 'Test TON Payments (0.1 TON)';
-                } else if (statusRes.status === 'not_found') {
-                    clearInterval(checkPayment);
-                    Telegram.WebApp.showAlert('Order not found.');
-                    linkContainer.remove();
-                    button.disabled = false;
-                    button.textContent = 'Test TON Payments (0.1 TON)';
+                const opened = window.open(response.paymentLink, '_blank');
+                if (opened) {
+                    logToUI('✅ Ссылка открыта через window.open');
+                    linkOpened = true;
+                } else {
+                    logToUI('❌ window.open заблокирован браузером');
                 }
             } catch (error) {
-                logToUI(`Check TON payment error: ${error.name}: ${error.message}`);
-                clearInterval(checkPayment);
-                linkContainer.remove();
-                button.disabled = false;
-                button.textContent = 'Test TON Payments (0.1 TON)';
+                logToUI(`❌ Ошибка window.open: ${error.message}`);
             }
-        }, 5000);
+        }
+
+        // Создание интерфейса с ссылкой и кнопкой копирования
+        const linkContainer = document.createElement('div');
+        linkContainer.id = 'ton-payment-container';
+        linkContainer.style.cssText = `
+            margin: 15px 0;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+        `;
+
+        linkContainer.innerHTML = `
+            <p><strong>💎 TON Платеж (${CONFIG.tonAmount} TON)</strong></p>
+            <p>${linkOpened ? '✅ Завершите платеж в TON кошельке' : '❗ Скопируйте ссылку для оплаты:'}</p>
+            <div style="word-break: break-all; margin: 10px 0; font-family: monospace; font-size: 12px; background: white; padding: 8px; border-radius: 4px;">
+                ${response.paymentLink}
+            </div>
+            <button id="copy-ton-link" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                📋 Копировать ссылку
+            </button>
+            <button id="close-ton-container" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+                ❌ Закрыть
+            </button>
+        `;
+
+        document.body.appendChild(linkContainer);
+
+        // Обработчик копирования
+        document.getElementById('copy-ton-link').addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(response.paymentLink);
+                logToUI('📋 Ссылка скопирована в буфер обмена');
+
+                if (tgWebApp) {
+                    tgWebApp.showAlert('Ссылка скопирована! Вставьте её в Telegram для оплаты.');
+                } else {
+                    alert('Ссылка скопирована!');
+                }
+            } catch (error) {
+                logToUI(`❌ Ошибка копирования: ${error.message}`);
+                // Fallback - выделение текста
+                const textArea = document.createElement('textarea');
+                textArea.value = response.paymentLink;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('Ссылка скопирована!');
+            }
+        });
+
+        // Обработчик закрытия
+        document.getElementById('close-ton-container').addEventListener('click', () => {
+            linkContainer.remove();
+            setButtonState('ton-btn', `💎 TON Платежи (${CONFIG.tonAmount} TON)`, false);
+        });
+
+        // Запуск проверки статуса платежа
+        let checkCount = 0;
+        const maxChecks = 24; // 2 минуты проверок каждые 5 секунд
+
+        const paymentChecker = setInterval(async () => {
+            checkCount++;
+
+            try {
+                const statusResponse = await makeRequest('/api/check-ton-payment', {
+                    chatId: paymentData.chatId,
+                    packId: paymentData.packId
+                });
+
+                logToUI(`🔍 Проверка TON платежа #${checkCount}: ${statusResponse.status}`);
+
+                if (statusResponse.status === 'completed') {
+                    clearInterval(paymentChecker);
+                    linkContainer.remove();
+                    setButtonState('ton-btn', `💎 TON Платежи (${CONFIG.tonAmount} TON)`, false);
+
+                    const successMessage = '🎉 TON платеж подтвержден! Стикеры разблокированы.';
+                    logToUI(successMessage);
+
+                    if (tgWebApp) {
+                        tgWebApp.showAlert(successMessage);
+                    } else {
+                        alert(successMessage);
+                    }
+                } else if (statusResponse.status === 'not_found') {
+                    clearInterval(paymentChecker);
+                    linkContainer.remove();
+                    setButtonState('ton-btn', `💎 TON Платежи (${CONFIG.tonAmount} TON)`, false);
+                    logToUI('❌ Заказ не найден');
+                }
+
+            } catch (error) {
+                logToUI(`❌ Ошибка проверки статуса: ${error.message}`);
+            }
+
+            // Остановка проверки по таймауту
+            if (checkCount >= maxChecks) {
+                clearInterval(paymentChecker);
+                logToUI(`⏰ Проверка платежа остановлена по таймауту (${maxChecks} попыток)`);
+                setButtonState('ton-btn', `💎 TON Платежи (${CONFIG.tonAmount} TON)`, false);
+            }
+        }, 5000); // Проверка каждые 5 секунд
+
+        // Уведомление пользователя
+        const message = linkOpened ?
+            'Завершите платеж в TON кошельке. Статус будет проверяться автоматически.' :
+            'Скопируйте ссылку и откройте её в Telegram для оплаты.';
+
+        if (tgWebApp) {
+            tgWebApp.showAlert(message);
+        } else {
+            alert(message);
+        }
+
     } catch (error) {
-        button.disabled = false;
-        button.textContent = 'Test TON Payments (0.1 TON)';
+        setButtonState('ton-btn', `💎 TON Платежи (${CONFIG.tonAmount} TON)`, false);
+        logToUI(`❌ Ошибка создания TON платежа: ${error.message}`);
     }
+});
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    logToUI('🚀 Приложение запущено');
+    logToUI(`🔧 Backend URL: ${CONFIG.backendUrl}`);
+
+    // Проверка статуса сервера
+    checkServerStatus();
+
+    // Показать информацию о конфигурации
+    setTimeout(() => {
+        logToUI(`💰 Тест суммы: ${CONFIG.starsAmount} Stars, ${CONFIG.tonAmount} TON`);
+        logToUI(`👤 Chat ID: ${CONFIG.testChatId}`);
+    }, 1000);
 });
