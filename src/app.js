@@ -51,18 +51,24 @@ document.getElementById('stars-btn').addEventListener('click', async () => {
         const { invoice } = await makeRequest('/api/create-stars-invoice', data);
         if (!invoice?.url) throw new Error('Invalid invoice URL');
         logToUI(`Opening invoice: ${invoice.url}`);
-        Telegram.WebApp.openInvoice(invoice.url, (status) => {
-            logToUI(`Invoice status: ${status}`);
-            if (status === 'paid') {
-                Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
-            } else if (status === 'cancelled') {
-                Telegram.WebApp.showAlert('Payment cancelled.');
-            } else {
-                Telegram.WebApp.showAlert('Payment failed. Please try again.');
-            }
-            button.disabled = false;
-            button.textContent = 'Test Telegram Stars (100 Stars)';
-        });
+        try {
+            Telegram.WebApp.openInvoice(invoice.url, (status) => {
+                logToUI(`Invoice status: ${status}`);
+                if (status === 'paid') {
+                    Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
+                } else if (status === 'cancelled') {
+                    Telegram.WebApp.showAlert('Payment cancelled.');
+                } else {
+                    Telegram.WebApp.showAlert('Payment failed. Please try again.');
+                }
+                button.disabled = false;
+                button.textContent = 'Test Telegram Stars (100 Stars)';
+            });
+            logToUI('openInvoice called successfully');
+        } catch (error) {
+            logToUI(`Error opening invoice: ${error.name}: ${error.message}`);
+            Telegram.WebApp.showAlert('Failed to open invoice. Please try again.');
+        }
     } catch (error) {
         button.disabled = false;
         button.textContent = 'Test Telegram Stars (100 Stars)';
@@ -85,16 +91,38 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
             throw new Error('Invalid TON payment link');
         }
         logToUI(`Opening TON payment link: ${paymentLink}`);
+        logToUI(`WebView platform: ${Telegram.WebApp.platform}, version: ${Telegram.WebApp.version}`);
+
+        // Try openLink
         try {
             Telegram.WebApp.openLink(paymentLink);
             logToUI('openLink called successfully');
             Telegram.WebApp.showAlert('Please complete the payment in your TON Wallet.');
+            logToUI('showAlert called for TON payment');
         } catch (error) {
             logToUI(`Error opening TON link: ${error.name}: ${error.message}`);
             Telegram.WebApp.showAlert('Failed to open TON Wallet. Please ensure a TON Wallet (e.g., @Wallet) is installed and in testnet mode.');
         }
 
-        // Fallback: Retry opening link after a delay
+        // Fallback: window.open
+        try {
+            window.open(paymentLink, '_blank');
+            logToUI('window.open called as fallback');
+        } catch (error) {
+            logToUI(`window.open error: ${error.name}: ${error.message}`);
+        }
+
+        // Fallback: Native alert
+        setTimeout(() => {
+            try {
+                alert('Please open your TON Wallet to complete the payment: ' + paymentLink);
+                logToUI('Native alert called as fallback');
+            } catch (error) {
+                logToUI(`Native alert error: ${error.name}: ${error.message}`);
+            }
+        }, 500);
+
+        // Retry openLink
         setTimeout(() => {
             try {
                 Telegram.WebApp.openLink(paymentLink);
