@@ -1,17 +1,24 @@
-const backendUrl = 'https://e063-77-105-28-218.ngrok-free.app'; // Replace with your backend URL
+const backendUrl = 'https://e063-77-105-28-218.ngrok-free.app'; // Your ngrok URL
 
 // Helper function to make API requests
 async function makeRequest(endpoint, data) {
     try {
+        console.log(`Sending request to ${endpoint}:`, JSON.stringify(data));
         const response = await fetch(`${backendUrl}${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         });
-        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-        return await response.json();
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error ${response.status}: ${errorText}`);
+        }
+        const result = await response.json();
+        console.log(`Response from ${endpoint}:`, JSON.stringify(result));
+        return result;
     } catch (error) {
-        Telegram.WebApp.showAlert(`Error: ${error.message}`);
+        console.error(`Error in ${endpoint}:`, error.message);
+        Telegram.WebApp.showAlert(`Request failed: ${error.message}`);
         throw error;
     }
 }
@@ -27,10 +34,13 @@ document.getElementById('stars-btn').addEventListener('click', async () => {
             packId: 'sticker-pack-1',
             title: 'Premium Sticker Pack',
             description: 'A set of 10 premium stickers',
-            amount: 100, // 100 Stars
+            amount: 100,
         };
         const { invoice } = await makeRequest('/api/create-stars-invoice', data);
+        if (!invoice?.url) throw new Error('Invalid invoice URL');
+        console.log('Opening invoice:', invoice.url);
         Telegram.WebApp.openInvoice(invoice.url, (status) => {
+            console.log('Invoice status:', status);
             if (status === 'paid') {
                 Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
             } else if (status === 'cancelled') {
@@ -47,38 +57,6 @@ document.getElementById('stars-btn').addEventListener('click', async () => {
     }
 });
 
-// Telegram Payments API
-document.getElementById('payments-btn').addEventListener('click', async () => {
-    const button = document.getElementById('payments-btn');
-    button.disabled = true;
-    button.textContent = 'Processing...';
-    try {
-        const data = {
-            chatId: Telegram.WebApp.initDataUnsafe.user?.id || 123456,
-            packId: 'sticker-pack-1',
-            title: 'Premium Sticker Pack',
-            description: 'A set of 10 premium stickers',
-            amount: 100, // $1.00 (in cents)
-            currency: 'USD',
-        };
-        const { invoice } = await makeRequest('/api/create-payment-invoice', data);
-        Telegram.WebApp.openInvoice(invoice.url, (status) => {
-            if (status === 'paid') {
-                Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
-            } else if (status === 'cancelled') {
-                Telegram.WebApp.showAlert('Payment cancelled.');
-            } else {
-                Telegram.WebApp.showAlert('Payment failed. Please try again.');
-            }
-            button.disabled = false;
-            button.textContent = 'Test Payments API ($1.00)';
-        });
-    } catch (error) {
-        button.disabled = false;
-        button.textContent = 'Test Payments API ($1.00)';
-    }
-});
-
 // TON Payments
 document.getElementById('ton-btn').addEventListener('click', async () => {
     const button = document.getElementById('ton-btn');
@@ -88,9 +66,13 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
         const data = {
             chatId: Telegram.WebApp.initDataUnsafe.user?.id || 123456,
             packId: 'sticker-pack-1',
-            amount: 0.1, // 0.1 TON
+            amount: 0.1,
         };
         const { paymentLink } = await makeRequest('/api/create-ton-invoice', data);
+        if (!paymentLink || !paymentLink.startsWith('ton://')) {
+            throw new Error('Invalid TON payment link');
+        }
+        console.log('Opening TON payment link:', paymentLink);
         Telegram.WebApp.openLink(paymentLink);
         Telegram.WebApp.showAlert('Please complete the payment in your TON Wallet.');
 
@@ -101,15 +83,22 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
                     chatId: data.chatId,
                     packId: data.packId,
                 });
+                console.log('Check TON payment status:', statusRes);
                 if (statusRes.status === 'completed') {
                     clearInterval(checkPayment);
                     Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
                     button.disabled = false;
                     button.textContent = 'Test TON Payments (0.1 TON)';
+                } else if (statusRes.status === 'not_found') {
+                    clearInterval(checkPayment);
+                    Telegram.WebApp.showAlert('Order not found.');
+                    button.disabled = false;
+                    button.textContent = 'Test TON Payments (0.1 TON)';
                 }
             } catch (error) {
+                console.error('Check TON payment error:', error);
                 clearInterval(checkPayment);
-                Telegram.WebApp.showAlert('Error checking payment.');
+                Telegram.WebApp.showAlert(`Check payment failed: ${error.message}`);
                 button.disabled = false;
                 button.textContent = 'Test TON Payments (0.1 TON)';
             }
