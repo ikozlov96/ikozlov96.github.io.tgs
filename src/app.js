@@ -23,8 +23,7 @@ async function makeRequest(endpoint, data) {
         if (!response.ok) {
             throw new Error(`HTTP error ${response.status}: ${responseText}`);
         }
-        const result = JSON.parse(responseText);
-        return result;
+        return JSON.parse(responseText);
     } catch (error) {
         logToUI(`Error in ${endpoint}: ${error.name}: ${error.message}`);
         if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
@@ -114,11 +113,28 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
             }
         }
 
-        // Show clickable link if still not opened
+        // Show clickable link or copy button
+        const linkContainer = document.getElementById('link-container') || document.createElement('div');
+        linkContainer.id = 'link-container';
+        linkContainer.style.margin = '10px';
+        linkContainer.innerHTML = `
+      <p>${linkOpened ? 'Complete payment in your TON Wallet.' : 'Open or copy this link to pay:'}</p>
+      <a href="${paymentLink}" style="color: #007bff">${paymentLink}</a>
+      <button id="copy-link-btn" style="margin-left: 10px;">Copy Link</button>
+    `;
+        document.body.appendChild(linkContainer);
+
+        document.getElementById('copy-link-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(paymentLink).then(() => {
+                logToUI('Payment link copied to clipboard');
+                Telegram.WebApp.showAlert('Link copied! Paste it in Telegram to pay.');
+            }).catch((err) => {
+                logToUI(`Clipboard error: ${err}`);
+            });
+        });
+
         if (!linkOpened) {
-            const linkMessage = `Please open this link in Telegram to pay: ${paymentLink}`;
-            logToUI(linkMessage);
-            Telegram.WebApp.showAlert(linkMessage);
+            Telegram.WebApp.showAlert('Failed to open TON Wallet. Use the link below or copy it to Telegram.');
         } else {
             Telegram.WebApp.showAlert('Please complete the payment in your TON Wallet.');
         }
@@ -134,17 +150,20 @@ document.getElementById('ton-btn').addEventListener('click', async () => {
                 if (statusRes.status === 'completed') {
                     clearInterval(checkPayment);
                     Telegram.WebApp.showAlert('Payment successful! Stickers unlocked.');
+                    linkContainer.remove();
                     button.disabled = false;
                     button.textContent = 'Test TON Payments (0.1 TON)';
                 } else if (statusRes.status === 'not_found') {
                     clearInterval(checkPayment);
                     Telegram.WebApp.showAlert('Order not found.');
+                    linkContainer.remove();
                     button.disabled = false;
                     button.textContent = 'Test TON Payments (0.1 TON)';
                 }
             } catch (error) {
                 logToUI(`Check TON payment error: ${error.name}: ${error.message}`);
                 clearInterval(checkPayment);
+                linkContainer.remove();
                 button.disabled = false;
                 button.textContent = 'Test TON Payments (0.1 TON)';
             }
