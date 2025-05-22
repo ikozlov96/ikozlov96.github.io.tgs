@@ -1,4 +1,4 @@
-const backendUrl = 'https://your-backend.com'; // Replace with your backend URL
+const backendUrl = 'https://e063-77-105-28-218.ngrok-free.app'; // Replace with your backend URL
 
 // Helper function to make API requests
 async function makeRequest(endpoint, data) {
