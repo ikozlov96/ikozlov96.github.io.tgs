@@ -3,11 +3,10 @@
   "version": "1.0.0",
   "description": "Telegram Mini App for testing payment methods",
   "scripts": {
-    "build": "mkdir -p public && cp index.html public/ && cp src/App.js public/StickerStoreMiniApp.js",
-    "deploy": "gh-pages -d public"
+    "deploy": "gh-pages -d ."
   },
   "dependencies": {
     "gh-pages": "^6.1.1"
   },
-  "homepage": "https://<username>.github.io/StickerStoreMiniApp"
+  "homepage": "https://ikozlov96.github.io.tgs"
 }
