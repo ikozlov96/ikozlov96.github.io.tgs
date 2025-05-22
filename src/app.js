@@ -1,7 +1,7 @@
 // Конфигурация - измените на ваш ngrok URL или домен
 const CONFIG = {
     // Для локальной разработки через ngrok
-    backendUrl: window.location.origin, // Автоматически использует текущий домен
+    backendUrl: 'https://4d44-77-105-28-218.ngrok-free.app', // Автоматически использует текущий домен
     // Или укажите напрямую: 'https://your-ngrok-url.ngrok-free.app'
 
     // Настройки для тестирования
